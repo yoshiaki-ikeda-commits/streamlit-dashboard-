@@ -20,7 +20,7 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("スマレジ 売上ダッシュボード")
+st.title("スマレジ 売上ダッシュボード（銀座）")
 
 # --------------- サイドバー ---------------
 st.sidebar.header("フィルター")
@@ -32,21 +32,25 @@ col_s1, col_s2 = st.sidebar.columns(2)
 start_date = col_s1.date_input("開始日", value=default_start)
 end_date = col_s2.date_input("終了日", value=today)
 
-# 店舗フィルター
+# 店舗 - 銀座固定
 stores_df = get_stores()
-store_options = {"すべて": None}
+store_id = None
+store_name = "銀座"
 if not stores_df.empty:
-    for _, row in stores_df.iterrows():
-        store_options[row.get("store_name", row.get("id", ""))] = str(
-            row.get("store_id", row.get("id", ""))
-        )
-selected_store_name = st.sidebar.selectbox("店舗", list(store_options.keys()))
-store_id = store_options[selected_store_name]
+    ginza = stores_df[stores_df["store_name"].str.contains("銀座", na=False)]
+    if not ginza.empty:
+        store_id = str(ginza.iloc[0]["store_id"])
+        store_name = ginza.iloc[0]["store_name"]
 
-# 前期計算
-period_days = (end_date - start_date).days
-prev_end = start_date - timedelta(days=1)
-prev_start = prev_end - timedelta(days=period_days)
+# 前年同期間比較
+try:
+    prev_start = start_date.replace(year=start_date.year - 1)
+except ValueError:
+    prev_start = start_date.replace(year=start_date.year - 1, day=28)
+try:
+    prev_end = end_date.replace(year=end_date.year - 1)
+except ValueError:
+    prev_end = end_date.replace(year=end_date.year - 1, day=28)
 
 
 # --------------- データ取得 (キャッシュ) ---------------
@@ -248,4 +252,4 @@ else:
 
 # --------------- フッター ---------------
 st.markdown("---")
-st.caption(f"データ期間: {start_date} 〜 {end_date} | 前期比較: {prev_start} 〜 {prev_end}")
+st.caption(f"データ期間: {start_date} 〜 {end_date} | 前年同期間: {prev_start} 〜 {prev_end}")
