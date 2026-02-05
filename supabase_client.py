@@ -28,15 +28,15 @@ def get_daily_sales(
     q = (
         supabase.table("daily_sales_summary")
         .select("*")
-        .gte("sales_date", start_date.isoformat())
-        .lte("sales_date", end_date.isoformat())
+        .gte("date", start_date.isoformat())
+        .lte("date", end_date.isoformat())
     )
     if store_id:
         q = q.eq("store_id", store_id)
-    res = q.order("sales_date").execute()
+    res = q.order("date").execute()
     df = pd.DataFrame(res.data)
     if not df.empty:
-        df["sales_date"] = pd.to_datetime(df["sales_date"])
+        df["date"] = pd.to_datetime(df["date"])
     return df
 
 
@@ -64,26 +64,30 @@ def get_product_rankings(
     store_id: str | None = None,
     limit: int = 20,
 ) -> pd.DataFrame:
-    q = (
-        supabase.table("transaction_details")
-        .select("product_id, products(product_name), quantity, amount")
-        .gte("created_at", start_date.isoformat())
-        .lte("created_at", end_date.isoformat())
-    )
-    if store_id:
-        q = q.eq("store_id", store_id)
-    res = q.execute()
-    df = pd.DataFrame(res.data)
+    # Get transaction_ids in date range
+    txns = get_transactions(start_date, end_date, store_id)
+    if txns.empty:
+        return pd.DataFrame()
+    txn_ids = txns["transaction_id"].tolist()
+
+    # Fetch details for those transactions (batch by 200)
+    all_details = []
+    for i in range(0, len(txn_ids), 200):
+        batch = txn_ids[i : i + 200]
+        res = (
+            supabase.table("transaction_details")
+            .select("product_id, product_name, quantity, subtotal")
+            .in_("transaction_id", batch)
+            .execute()
+        )
+        all_details.extend(res.data)
+
+    df = pd.DataFrame(all_details)
     if df.empty:
         return df
-    if "products" in df.columns:
-        df["product_name"] = df["products"].apply(
-            lambda x: x.get("product_name", "") if isinstance(x, dict) else ""
-        )
-        df = df.drop(columns=["products"])
     ranking = (
         df.groupby(["product_id", "product_name"])
-        .agg(total_quantity=("quantity", "sum"), total_amount=("amount", "sum"))
+        .agg(total_quantity=("quantity", "sum"), total_amount=("subtotal", "sum"))
         .reset_index()
         .sort_values("total_amount", ascending=False)
         .head(limit)
@@ -94,30 +98,41 @@ def get_product_rankings(
 def get_category_sales(
     start_date: date, end_date: date, store_id: str | None = None
 ) -> pd.DataFrame:
-    q = (
-        supabase.table("transaction_details")
-        .select("category_id, categories(category_name), amount")
-        .gte("created_at", start_date.isoformat())
-        .lte("created_at", end_date.isoformat())
-    )
-    if store_id:
-        q = q.eq("store_id", store_id)
-    res = q.execute()
-    df = pd.DataFrame(res.data)
+    txns = get_transactions(start_date, end_date, store_id)
+    if txns.empty:
+        return pd.DataFrame()
+    txn_ids = txns["transaction_id"].tolist()
+
+    all_details = []
+    for i in range(0, len(txn_ids), 200):
+        batch = txn_ids[i : i + 200]
+        res = (
+            supabase.table("transaction_details")
+            .select("category_id, subtotal")
+            .in_("transaction_id", batch)
+            .execute()
+        )
+        all_details.extend(res.data)
+
+    df = pd.DataFrame(all_details)
     if df.empty:
         return df
-    if "categories" in df.columns:
-        df["category_name"] = df["categories"].apply(
-            lambda x: x.get("category_name", "") if isinstance(x, dict) else ""
-        )
-        df = df.drop(columns=["categories"])
+
+    # Get category names
+    cats = supabase.table("categories").select("category_id, category_name").execute()
+    cats_df = pd.DataFrame(cats.data)
+
     result = (
-        df.groupby(["category_id", "category_name"])
-        .agg(total_amount=("amount", "sum"))
+        df.groupby("category_id")
+        .agg(total_amount=("subtotal", "sum"))
         .reset_index()
-        .sort_values("total_amount", ascending=False)
     )
-    return result
+    if not cats_df.empty:
+        result = result.merge(cats_df, on="category_id", how="left")
+        result["category_name"] = result["category_name"].fillna("不明")
+    else:
+        result["category_name"] = "不明"
+    return result.sort_values("total_amount", ascending=False)
 
 
 def get_hourly_sales(
@@ -130,7 +145,7 @@ def get_hourly_sales(
     txns["weekday"] = txns["transaction_date"].dt.dayofweek  # 0=Mon
     hourly = (
         txns.groupby(["weekday", "hour"])
-        .agg(total_amount=("total", "sum"), count=("id", "count"))
+        .agg(total_amount=("total_amount", "sum"), count=("id", "count"))
         .reset_index()
     )
     return hourly

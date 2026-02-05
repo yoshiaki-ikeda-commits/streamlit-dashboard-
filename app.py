@@ -56,11 +56,6 @@ def load_daily_sales(_start, _end, _store):
 
 
 @st.cache_data(ttl=300)
-def load_transactions(_start, _end, _store):
-    return get_transactions(_start, _end, _store)
-
-
-@st.cache_data(ttl=300)
 def load_product_rankings(_start, _end, _store, _limit=20):
     return get_product_rankings(_start, _end, _store, _limit)
 
@@ -77,7 +72,6 @@ def load_hourly_sales(_start, _end, _store):
 
 daily_df = load_daily_sales(start_date, end_date, store_id)
 prev_daily_df = load_daily_sales(prev_start, prev_end, store_id)
-txns_df = load_transactions(start_date, end_date, store_id)
 products_df = load_product_rankings(start_date, end_date, store_id)
 category_df = load_category_sales(start_date, end_date, store_id)
 hourly_df = load_hourly_sales(start_date, end_date, store_id)
@@ -102,14 +96,14 @@ st.markdown("---")
 current_sales = daily_df["total_sales"].sum() if not daily_df.empty and "total_sales" in daily_df.columns else 0
 prev_sales = prev_daily_df["total_sales"].sum() if not prev_daily_df.empty and "total_sales" in prev_daily_df.columns else 0
 
-current_txns = daily_df["transaction_count"].sum() if not daily_df.empty and "transaction_count" in daily_df.columns else 0
-prev_txns = prev_daily_df["transaction_count"].sum() if not prev_daily_df.empty and "transaction_count" in prev_daily_df.columns else 0
+current_txns = daily_df["total_transactions"].sum() if not daily_df.empty and "total_transactions" in daily_df.columns else 0
+prev_txns = prev_daily_df["total_transactions"].sum() if not prev_daily_df.empty and "total_transactions" in prev_daily_df.columns else 0
 
 current_avg = current_sales / current_txns if current_txns > 0 else 0
 prev_avg = prev_sales / prev_txns if prev_txns > 0 else 0
 
-current_items = daily_df["total_quantity"].sum() if not daily_df.empty and "total_quantity" in daily_df.columns else 0
-prev_items = prev_daily_df["total_quantity"].sum() if not prev_daily_df.empty and "total_quantity" in prev_daily_df.columns else 0
+current_items = daily_df["total_items"].sum() if not daily_df.empty and "total_items" in daily_df.columns else 0
+prev_items = prev_daily_df["total_items"].sum() if not prev_daily_df.empty and "total_items" in prev_daily_df.columns else 0
 
 k1, k2, k3, k4 = st.columns(4)
 k1.metric("売上合計", fmt_yen(current_sales), calc_delta(current_sales, prev_sales))
@@ -126,7 +120,7 @@ if not daily_df.empty and "total_sales" in daily_df.columns:
     fig_daily = go.Figure()
     fig_daily.add_trace(
         go.Scatter(
-            x=daily_df["sales_date"],
+            x=daily_df["date"],
             y=daily_df["total_sales"],
             mode="lines+markers",
             name="当期",
@@ -135,10 +129,10 @@ if not daily_df.empty and "total_sales" in daily_df.columns:
     )
     if not prev_daily_df.empty and "total_sales" in prev_daily_df.columns:
         prev_plot = prev_daily_df.copy()
-        prev_plot["sales_date"] = prev_plot["sales_date"] + timedelta(days=period_days + 1)
+        prev_plot["date"] = prev_plot["date"] + timedelta(days=period_days + 1)
         fig_daily.add_trace(
             go.Scatter(
-                x=prev_plot["sales_date"],
+                x=prev_plot["date"],
                 y=prev_plot["total_sales"],
                 mode="lines",
                 name="前期",
@@ -164,10 +158,10 @@ st.subheader("月別売上サマリー")
 
 if not daily_df.empty and "total_sales" in daily_df.columns:
     monthly = daily_df.copy()
-    monthly["month"] = monthly["sales_date"].dt.to_period("M").astype(str)
+    monthly["month"] = monthly["date"].dt.to_period("M").astype(str)
     monthly_agg = (
         monthly.groupby("month")
-        .agg(total_sales=("total_sales", "sum"), transaction_count=("transaction_count", "sum"))
+        .agg(total_sales=("total_sales", "sum"), total_transactions=("total_transactions", "sum"))
         .reset_index()
     )
     fig_monthly = px.bar(
