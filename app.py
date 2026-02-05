@@ -133,13 +133,14 @@ if not daily_df.empty and "total_sales" in daily_df.columns:
     )
     if not prev_daily_df.empty and "total_sales" in prev_daily_df.columns:
         prev_plot = prev_daily_df.copy()
-        prev_plot["date"] = prev_plot["date"] + timedelta(days=period_days + 1)
+        date_shift = (start_date - prev_start).days
+        prev_plot["date"] = prev_plot["date"] + timedelta(days=date_shift)
         fig_daily.add_trace(
             go.Scatter(
                 x=prev_plot["date"],
                 y=prev_plot["total_sales"],
                 mode="lines",
-                name="前期",
+                name="前年",
                 line=dict(color="#CCCCCC", width=1, dash="dash"),
             )
         )
