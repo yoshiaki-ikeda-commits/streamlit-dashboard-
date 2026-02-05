@@ -55,23 +55,23 @@ except ValueError:
 
 # --------------- データ取得 (キャッシュ) ---------------
 @st.cache_data(ttl=300)
-def load_daily_sales(_start, _end, _store):
-    return get_daily_sales(_start, _end, _store)
+def load_daily_sales(start, end, store):
+    return get_daily_sales(start, end, store)
 
 
 @st.cache_data(ttl=300)
-def load_product_rankings(_start, _end, _store, _limit=20):
-    return get_product_rankings(_start, _end, _store, _limit)
+def load_product_rankings(start, end, store, limit=20):
+    return get_product_rankings(start, end, store, limit)
 
 
 @st.cache_data(ttl=300)
-def load_category_sales(_start, _end, _store):
-    return get_category_sales(_start, _end, _store)
+def load_category_sales(start, end, store):
+    return get_category_sales(start, end, store)
 
 
 @st.cache_data(ttl=300)
-def load_hourly_sales(_start, _end, _store):
-    return get_hourly_sales(_start, _end, _store)
+def load_hourly_sales(start, end, store):
+    return get_hourly_sales(start, end, store)
 
 
 daily_df = load_daily_sales(start_date, end_date, store_id)
